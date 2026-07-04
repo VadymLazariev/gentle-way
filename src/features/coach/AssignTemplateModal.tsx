@@ -93,6 +93,7 @@ export function AssignTemplateModal({
               id="assign-client"
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
+              data-testid="assign-program-client"
             >
               <option value="">Select a client…</option>
               {(clients.data ?? []).map((c) => (
@@ -157,7 +158,7 @@ export function AssignTemplateModal({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="button" onClick={onSubmit} disabled={assign.isPending}>
+            <Button type="button" onClick={onSubmit} disabled={assign.isPending} data-testid="assign-program-submit">
               {assign.isPending ? 'Assigning…' : 'Assign program'}
             </Button>
           </div>

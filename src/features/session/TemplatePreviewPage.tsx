@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { RpeTextBadge } from '@/components/RpeBadge'
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/Feedback'
-import { useDayPrescriptions, useWeek } from '@/api/program'
+import { prescriptionsToPlanned, useDayPrescriptions, useWeek } from '@/api/program'
+import { useActiveAssignment, useAssignedDayExercises, useTemplateStructure } from '@/api/programs'
 import { useSessionByWeekDay, useStartSession } from '@/api/sessions'
 import { useActiveInjuries, useCommitCheckin } from '@/api/health'
 import { toastError } from '@/components/ui/Toast'
@@ -15,16 +16,30 @@ import { CheckinStep } from '@/features/checkin/CheckinStep'
 import type { CheckinResult } from '@/features/checkin/CheckinStep'
 import { AdjustmentList } from '@/features/checkin/AdjustmentList'
 import { ExerciseInfoModal } from '@/features/session/ExerciseInfoModal'
+import { resolveWeek, totalTemplateWeeks } from '@/lib/assignment'
 import { DAY_META, TOTAL_WEEKS, blockIdForWeek } from '@/lib/program'
 import { parsePrescription } from '@/lib/prescription'
 import { buildAdjustmentPlan, hasEffect } from '@/lib/adjustments'
 import type { AdjustmentPlan } from '@/lib/adjustments'
-import type { DayCode, Prescription } from '@/lib/types'
+import type { DayCode, PlannedExercise } from '@/lib/types'
 
 type Phase = 'preview' | 'checkin' | 'review'
 
 function parseDay(value: string | undefined): DayCode | null {
   return value === 'A' || value === 'B' || value === 'C' ? value : null
+}
+
+function exerciseKey(exercise: PlannedExercise): string {
+  switch (exercise.source.kind) {
+    case 'builtin':
+      return `b-${exercise.source.prescriptionId}`
+    case 'template':
+      return `t-${exercise.source.templateSessionId}`
+    default: {
+      const _exhaustive: never = exercise.source
+      return _exhaustive
+    }
+  }
 }
 
 function mainWorkFor(
@@ -52,10 +67,41 @@ export function TemplatePreviewPage() {
   const week = Number(params.week)
   const day = parseDay(params.day)
 
-  const validWeek = Number.isFinite(week) && week >= 1 && week <= TOTAL_WEEKS
-  const prescriptions = useDayPrescriptions(validWeek ? week : undefined, day ?? undefined)
-  const weekData = useWeek(validWeek ? week : undefined)
-  const session = useSessionByWeekDay(validWeek ? week : undefined, day ?? undefined)
+  const assignment = useActiveAssignment()
+  const structure = useTemplateStructure(assignment.data?.template_id)
+  const assigned = assignment.data != null
+
+  const weekPlacement = useMemo(() => {
+    if (!assigned || !structure.data) return null
+    return resolveWeek(
+      structure.data.mesocycles,
+      week,
+      assignment.data?.mesocycle_id ?? null,
+    )
+  }, [assigned, structure.data, week, assignment.data?.mesocycle_id])
+
+  const maxWeek = assigned && structure.data
+    ? totalTemplateWeeks(structure.data.mesocycles)
+    : TOTAL_WEEKS
+  const validWeek = Number.isFinite(week) && week >= 1 && week <= maxWeek
+
+  const builtinPrescriptions = useDayPrescriptions(
+    assigned || !validWeek ? undefined : week,
+    assigned || !day ? undefined : day ?? undefined,
+  )
+  const assignedExercises = useAssignedDayExercises(
+    weekPlacement?.mesocycle.id,
+    weekPlacement?.weekInMeso,
+    day ?? undefined,
+  )
+
+  const exercises = assigned ? assignedExercises : builtinPrescriptions
+  const weekData = useWeek(assigned || !validWeek ? undefined : week)
+  const session = useSessionByWeekDay(
+    validWeek ? week : undefined,
+    day ?? undefined,
+    assigned ? assignment.data?.template_id : null,
+  )
   const activeInjuries = useActiveInjuries()
   const start = useStartSession()
   const commitCheckin = useCommitCheckin()
@@ -64,10 +110,15 @@ export function TemplatePreviewPage() {
   const [checkin, setCheckin] = useState<CheckinResult | null>(null)
   const [infoExercise, setInfoExercise] = useState<string | null>(null)
 
+  const plannedExercises = useMemo((): PlannedExercise[] => {
+    if (assigned) return assignedExercises.data ?? []
+    return prescriptionsToPlanned(builtinPrescriptions.data ?? [])
+  }, [assigned, assignedExercises.data, builtinPrescriptions.data])
+
   const plan = useMemo<AdjustmentPlan | null>(() => {
-    if (!checkin || !prescriptions.data) return null
+    if (assigned || !checkin || !builtinPrescriptions.data) return null
     return buildAdjustmentPlan(
-      prescriptions.data.map((p) => {
+      builtinPrescriptions.data.map((p) => {
         const rpe = p.target_rpe != null ? Number.parseFloat(p.target_rpe) : null
         return {
           prescriptionId: p.id,
@@ -78,34 +129,48 @@ export function TemplatePreviewPage() {
       checkin.reportedInjuries,
       checkin.readiness,
     )
-  }, [checkin, prescriptions.data])
+  }, [assigned, checkin, builtinPrescriptions.data])
 
   if (!validWeek || !day) {
     return <ErrorState message="That session does not exist." />
   }
 
-  const title = `Week ${week} · ${DAY_META[day].label}`
-  const mainWork = mainWorkFor(day, weekData.data ?? null)
+  const title = assigned
+    ? `Week ${week} · Day ${day}`
+    : `Week ${week} · ${DAY_META[day].label}`
+  const mainWork = assigned ? null : mainWorkFor(day, weekData.data ?? null)
   const existing = session.data
   const state = existing == null ? 'new' : existing.finished_at ? 'finished' : 'active'
 
   const enterTracker = () => navigate(`/session/${week}/${day}`)
 
-  const startSession = async (data: Prescription[], result: CheckinResult | null, adjusted: boolean) => {
+  const startSession = async (
+    data: PlannedExercise[],
+    result: CheckinResult | null,
+    adjusted: boolean,
+  ) => {
     try {
       let checkinId: string | null = null
       if (result) {
-        const checkin = await commitCheckin.mutateAsync(result.draft)
-        checkinId = checkin.id
+        const saved = await commitCheckin.mutateAsync(result.draft)
+        checkinId = saved.id
       }
       await start.mutateAsync({
         weekNumber: week,
         dayCode: day,
-        blockId: blockIdForWeek(week),
+        blockId: assigned ? null : blockIdForWeek(week),
         title,
-        prescriptions: data,
+        exercises: data,
+        provenance:
+          assigned && weekPlacement
+            ? {
+                templateId: assignment.data!.template_id,
+                mesocycleId: weekPlacement.mesocycle.id,
+                templateWeek: weekPlacement.weekInMeso,
+              }
+            : null,
         checkinId,
-        adjustments: adjusted && plan ? plan.adjustments : undefined,
+        adjustments: !assigned && adjusted && plan ? plan.adjustments : undefined,
       })
       enterTracker()
     } catch (e) {
@@ -137,10 +202,12 @@ export function TemplatePreviewPage() {
         </div>
         <CheckinStep
           activeInjuries={activeInjuries.data ?? []}
-          onSkip={() => {
-            if (prescriptions.data) startSession(prescriptions.data, null, false)
-          }}
+          onSkip={() => startSession(plannedExercises, null, false)}
           onContinue={(result) => {
+            if (assigned) {
+              startSession(plannedExercises, result, false)
+              return
+            }
             setCheckin(result)
             setPhase('review')
           }}
@@ -177,7 +244,7 @@ export function TemplatePreviewPage() {
             <Button
               size="lg"
               className="w-full"
-              onClick={() => prescriptions.data && startSession(prescriptions.data, checkin, true)}
+              onClick={() => startSession(plannedExercises, checkin, true)}
               disabled={start.isPending || commitCheckin.isPending}
             >
               <ShieldCheck className="h-5 w-5" />
@@ -188,7 +255,7 @@ export function TemplatePreviewPage() {
             size="lg"
             variant={anyChange ? 'outline' : 'primary'}
             className="w-full"
-            onClick={() => prescriptions.data && startSession(prescriptions.data, checkin, false)}
+            onClick={() => startSession(plannedExercises, checkin, false)}
             disabled={start.isPending || commitCheckin.isPending}
           >
             <Play className="h-5 w-5" />
@@ -214,14 +281,14 @@ export function TemplatePreviewPage() {
           <X className="h-5 w-5" />
         </button>
         <Badge variant="primary">
-          <Dumbbell className="h-3 w-3" /> {DAY_META[day].weekday}
+          <Dumbbell className="h-3 w-3" /> {assigned ? `Day ${day}` : DAY_META[day].weekday}
         </Badge>
       </div>
 
       <h1 className="text-2xl font-bold text-[var(--color-fg)]">{title}</h1>
       {mainWork ? <p className="mt-1 text-sm text-[var(--color-fg)]">{mainWork}</p> : null}
       <p className="mt-1 text-sm text-[var(--color-muted)]">
-        {prescriptions.data?.length ?? 0} exercises · set-by-set tracking
+        {plannedExercises.length} exercises · set-by-set tracking
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -235,19 +302,19 @@ export function TemplatePreviewPage() {
       </div>
 
       <div className="mt-5">
-        {prescriptions.isLoading ? (
+        {exercises.isLoading || (assigned && structure.isLoading) ? (
           <LoadingState label="Loading exercises…" />
-        ) : prescriptions.isError ? (
+        ) : exercises.isError ? (
           <ErrorState />
-        ) : !prescriptions.data || prescriptions.data.length === 0 ? (
+        ) : plannedExercises.length === 0 ? (
           <EmptyState title="No prescriptions for this day" />
         ) : (
           <Card>
             <CardContent className="divide-y divide-[var(--color-border)] p-0">
-              {prescriptions.data.map((p) => {
+              {plannedExercises.map((p) => {
                 const parsed = parsePrescription(p.prescription)
                 return (
-                  <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div key={exerciseKey(p)} className="flex items-center justify-between gap-3 px-4 py-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <p className="truncate font-medium text-[var(--color-fg)]">{p.exercise}</p>
@@ -284,9 +351,9 @@ export function TemplatePreviewPage() {
           disabled={
             start.isPending ||
             session.isLoading ||
-            !prescriptions.data ||
-            prescriptions.data.length === 0
+            plannedExercises.length === 0
           }
+          data-testid="start-workout-btn"
         >
           <Play className="h-5 w-5" />
           {start.isPending ? 'Starting…' : primaryLabel}
@@ -297,9 +364,7 @@ export function TemplatePreviewPage() {
             variant="outline"
             className="w-full"
             onClick={() => setPhase('checkin')}
-            disabled={
-              start.isPending || !prescriptions.data || prescriptions.data.length === 0
-            }
+            disabled={start.isPending || plannedExercises.length === 0}
           >
             <RotateCcw className="h-5 w-5" />
             Start again

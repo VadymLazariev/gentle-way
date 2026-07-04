@@ -7,7 +7,7 @@ import { epley1RM } from '@/lib/stats'
 import type { ExerciseAdjustment } from '@/lib/adjustments'
 import type {
   DayCode,
-  Prescription,
+  PlannedExercise,
   SessionAdjustment,
   SessionAdjustmentInsert,
   SessionSet,
@@ -16,6 +16,28 @@ import type {
   WorkoutSession,
   WorkoutSessionUpdate,
 } from '@/lib/types'
+
+export type SessionProvenance = {
+  templateId: string
+  mesocycleId: string
+  templateWeek: number
+}
+
+function setLinkFields(source: PlannedExercise['source']): {
+  prescription_id: number | null
+  template_session_id: string | null
+} {
+  switch (source.kind) {
+    case 'builtin':
+      return { prescription_id: source.prescriptionId, template_session_id: null }
+    case 'template':
+      return { prescription_id: null, template_session_id: source.templateSessionId }
+    default: {
+      const _exhaustive: never = source
+      return _exhaustive
+    }
+  }
+}
 
 export type PreviousSet = {
   weightKg: number | null
@@ -46,18 +68,30 @@ function requireClientId(clientId: string | undefined): string {
 export function useSessionByWeekDay(
   weekNumber: number | undefined,
   dayCode: DayCode | undefined,
+  templateId?: string | null,
 ) {
   const clientId = useClientId()
   return useQuery({
-    queryKey: queryKeys.sessionByWeekDay(clientId ?? '', weekNumber ?? 0, dayCode ?? 'A'),
+    queryKey: queryKeys.sessionByWeekDay(
+      clientId ?? '',
+      weekNumber ?? 0,
+      dayCode ?? 'A',
+      templateId,
+    ),
     enabled: !!clientId && weekNumber !== undefined && dayCode !== undefined,
     queryFn: async (): Promise<WorkoutSession | null> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('workout_sessions')
         .select('*')
         .eq('client_id', clientId!)
         .eq('week_number', weekNumber!)
         .eq('day_code', dayCode!)
+      if (templateId) {
+        query = query.eq('template_id', templateId)
+      } else {
+        query = query.is('template_id', null)
+      }
+      const { data, error } = await query
         .order('started_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -271,9 +305,10 @@ export function useStartSession() {
     mutationFn: async (input: {
       weekNumber: number
       dayCode: DayCode
-      blockId: number
+      blockId: number | null
       title: string
-      prescriptions: Prescription[]
+      exercises: PlannedExercise[]
+      provenance?: SessionProvenance | null
       checkinId?: string | null
       adjustments?: ExerciseAdjustment[]
     }): Promise<WorkoutSession> => {
@@ -287,6 +322,9 @@ export function useStartSession() {
           block_id: input.blockId,
           title: input.title,
           checkin_id: input.checkinId ?? null,
+          template_id: input.provenance?.templateId ?? null,
+          mesocycle_id: input.provenance?.mesocycleId ?? null,
+          template_week: input.provenance?.templateWeek ?? null,
         })
         .select('*')
         .single()
@@ -296,19 +334,22 @@ export function useStartSession() {
       for (const a of input.adjustments ?? []) adjustmentByPrescription.set(a.prescriptionId, a)
 
       const rows: SessionSetInsert[] = []
-      for (const p of input.prescriptions) {
-        const adjustment = adjustmentByPrescription.get(p.id)
+      for (const planned of input.exercises) {
+        const prescriptionId =
+          planned.source.kind === 'builtin' ? planned.source.prescriptionId : null
+        const adjustment = prescriptionId != null ? adjustmentByPrescription.get(prescriptionId) : undefined
         if (adjustment?.action === 'skip') continue
         const exercise =
           adjustment?.action === 'swap' && adjustment.substitute
             ? adjustment.substitute
-            : p.exercise
-        const parsed = parsePrescription(p.prescription)
+            : planned.exercise
+        const parsed = parsePrescription(planned.prescription)
+        const links = setLinkFields(planned.source)
         for (let i = 1; i <= parsed.sets; i += 1) {
           rows.push({
             session_id: session.id,
             exercise,
-            prescription_id: p.id,
+            ...links,
             set_index: i,
             set_type: 'normal',
             reps: parsed.reps,
@@ -351,7 +392,12 @@ export function useStartSession() {
     onSuccess: (session, variables) => {
       const owner = requireClientId(clientId)
       qc.setQueryData(
-        queryKeys.sessionByWeekDay(owner, variables.weekNumber, variables.dayCode),
+        queryKeys.sessionByWeekDay(
+          owner,
+          variables.weekNumber,
+          variables.dayCode,
+          variables.provenance?.templateId ?? null,
+        ),
         session,
       )
       invalidateSessions(qc, owner)
@@ -383,6 +429,7 @@ export function useAddSet() {
       sessionId: string
       exercise: string
       prescriptionId: number | null
+      templateSessionId?: string | null
       setIndex: number
       setType?: SetType
       weightKg?: number | null
@@ -394,6 +441,7 @@ export function useAddSet() {
           session_id: input.sessionId,
           exercise: input.exercise,
           prescription_id: input.prescriptionId,
+          template_session_id: input.templateSessionId ?? null,
           set_index: input.setIndex,
           set_type: input.setType ?? 'normal',
           weight_kg: input.weightKg ?? null,

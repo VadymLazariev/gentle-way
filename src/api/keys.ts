@@ -19,8 +19,15 @@ export const queryKeys = {
   settings: (clientId: string) => ['client_settings', clientId] as const,
   sessions: (clientId: string) => ['workout_sessions', clientId] as const,
   session: (clientId: string, id: string) => ['workout_sessions', clientId, id] as const,
-  sessionByWeekDay: (clientId: string, weekNumber: number, dayCode: DayCode) =>
-    ['workout_sessions', clientId, 'week_day', weekNumber, dayCode] as const,
+  sessionByWeekDay: (
+    clientId: string,
+    weekNumber: number,
+    dayCode: DayCode,
+    templateId?: string | null,
+  ) =>
+    ['workout_sessions', clientId, 'week_day', weekNumber, dayCode, templateId ?? null] as const,
+  assignedDayExercises: (mesocycleId: string, weekInMeso: number, dayCode: string) =>
+    ['template_sessions', 'assigned', mesocycleId, weekInMeso, dayCode] as const,
   sessionSets: (clientId: string, sessionId: string) =>
     ['session_sets', clientId, sessionId] as const,
   previousSets: (clientId: string, sessionId: string) =>

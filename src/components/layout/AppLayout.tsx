@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LogOut, Swords } from 'lucide-react'
+import { LogOut } from 'lucide-react'
+import { BrandLogo } from '@/components/layout/BrandLogo'
 import { clientNavItems } from '@/components/layout/nav'
 import { InstallPrompt } from '@/components/InstallPrompt'
 import { Toaster, toastError } from '@/components/ui/Toast'
@@ -92,9 +93,7 @@ export function AppLayout() {
 function Brand() {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-primary)] text-[var(--color-primary-fg)]">
-        <Swords className="h-5 w-5" />
-      </div>
+      <BrandLogo className="h-9 w-9" />
       <div className="leading-tight">
         <p className="text-sm font-bold text-[var(--color-fg)]">Gentle Way</p>
         <p className="text-[11px] text-[var(--color-muted)]">52-week program</p>

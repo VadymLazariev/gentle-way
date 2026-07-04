@@ -6,11 +6,22 @@ import type {
   DayCode,
   ExerciseLibraryItem,
   GlobalRule,
+  PlannedExercise,
   Prescription,
   ProgramWeek,
   ProgressionRule,
   WeeklyCalendarDay,
 } from '@/lib/types'
+
+export function prescriptionsToPlanned(prescriptions: Prescription[]): PlannedExercise[] {
+  return prescriptions.map((p) => ({
+    exercise: p.exercise,
+    prescription: p.prescription,
+    target_rpe: p.target_rpe,
+    rest: p.rest,
+    source: { kind: 'builtin', prescriptionId: p.id },
+  }))
+}
 
 export function useBlocks() {
   return useQuery({

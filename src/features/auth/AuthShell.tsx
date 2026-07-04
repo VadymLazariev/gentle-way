@@ -15,7 +15,7 @@ export function AuthShell({
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg)] px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary)] text-[var(--color-primary-fg)]">
+          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl">
             {icon}
           </div>
           <div>

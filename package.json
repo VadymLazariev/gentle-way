@@ -13,7 +13,8 @@
     "seed:gen": "tsx scripts/generate-seed.ts",
     "media:fetch": "tsx scripts/fetch-exercise-media.ts",
     "db:reset": "supabase db reset",
-    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts"
+    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts",
+    "deploy": "vercel --prod"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -43,6 +44,7 @@
     "tailwindcss": "^4.3.2",
     "tsx": "^4.22.5",
     "typescript": "~6.0.2",
+    "vercel": "^54.20.1",
     "vite": "^8.1.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }

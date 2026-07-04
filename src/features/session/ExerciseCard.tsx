@@ -14,6 +14,13 @@ import { useAddSet, useDeleteSet, useUpdateSet } from '@/api/sessions'
 import type { PreviousSet } from '@/api/sessions'
 import type { AdjustmentAction, Prescription, SessionSet, SetType } from '@/lib/types'
 
+export type ExerciseMeta = {
+  exercise: string
+  prescription: string | null
+  target_rpe: string | null
+  rest: string | null
+}
+
 const ROW_GRID = 'grid grid-cols-[2rem_minmax(0,1fr)_3.25rem_2.5rem_2.75rem_2.25rem] items-center gap-1.5'
 
 export type CardAdjustment = {
@@ -45,6 +52,8 @@ function previousText(previous: PreviousSet | undefined): string {
 export function ExerciseCard({
   sessionId,
   prescription,
+  templateSessionId,
+  meta,
   exerciseName,
   adjustment,
   sets,
@@ -53,7 +62,9 @@ export function ExerciseCard({
   disabled,
 }: {
   sessionId: string
-  prescription: Prescription
+  prescription: Prescription | null
+  templateSessionId?: string | null
+  meta?: ExerciseMeta
   exerciseName?: string
   adjustment?: CardAdjustment | null
   sets: SessionSet[]
@@ -63,9 +74,22 @@ export function ExerciseCard({
 }) {
   const addSet = useAddSet()
   const [infoOpen, setInfoOpen] = useState(false)
-  const restSeconds = parseRestSeconds(prescription.rest)
+  const displayMeta = meta ?? (prescription
+    ? {
+        exercise: prescription.exercise,
+        prescription: prescription.prescription,
+        target_rpe: prescription.target_rpe,
+        rest: prescription.rest,
+      }
+    : {
+        exercise: exerciseName ?? 'Exercise',
+        prescription: null,
+        target_rpe: null,
+        rest: null,
+      })
+  const restSeconds = parseRestSeconds(displayMeta.rest)
   const labelled = withLabels(sets)
-  const displayName = exerciseName ?? prescription.exercise
+  const displayName = exerciseName ?? displayMeta.exercise
   const isSwap = adjustment?.action === 'swap'
   const isCap = adjustment?.action === 'cap_rpe'
 
@@ -75,13 +99,14 @@ export function ExerciseCard({
     addSet.mutate({
       sessionId,
       exercise: displayName,
-      prescriptionId: prescription.id,
+      prescriptionId: prescription?.id ?? null,
+      templateSessionId: templateSessionId ?? null,
       setIndex: nextIndex,
       reps: template?.reps ?? null,
     })
   }
 
-  const restLabel = restSeconds != null ? formatDuration(restSeconds) : prescription.rest
+  const restLabel = restSeconds != null ? formatDuration(restSeconds) : displayMeta.rest
 
   return (
     <Card className={adjustment ? 'border-[var(--color-accent)]' : undefined}>
@@ -103,7 +128,7 @@ export function ExerciseCard({
               </Badge>
             ) : null}
           </div>
-          {isSwap ? (
+          {isSwap && prescription ? (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-[var(--color-muted)]">
               <ArrowRight className="h-3 w-3" /> from {prescription.exercise}
             </p>
@@ -112,17 +137,17 @@ export function ExerciseCard({
             <p className="mt-0.5 text-xs text-[var(--color-muted)]">{adjustment.reason}</p>
           ) : null}
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            {prescription.prescription ? (
-              <span className="text-xs text-[var(--color-muted)]">{prescription.prescription}</span>
+            {displayMeta.prescription ? (
+              <span className="text-xs text-[var(--color-muted)]">{displayMeta.prescription}</span>
             ) : null}
             <RpeTextBadge
               value={
-                isCap && adjustment?.rpeCap != null ? String(adjustment.rpeCap) : prescription.target_rpe
+                isCap && adjustment?.rpeCap != null ? String(adjustment.rpeCap) : displayMeta.target_rpe
               }
             />
-            {prescription.rest ? (
+            {displayMeta.rest ? (
               <Badge variant="outline">
-                <Timer className="h-3 w-3" /> {prescription.rest}
+                <Timer className="h-3 w-3" /> {displayMeta.rest}
               </Badge>
             ) : null}
           </div>

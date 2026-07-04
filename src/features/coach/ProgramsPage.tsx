@@ -43,7 +43,7 @@ export function ProgramsPage() {
         title="Programs"
         subtitle="Browse system templates, duplicate them, or build your own"
         action={
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Button size="sm" onClick={() => setCreateOpen(true)} data-testid="new-program-btn">
             <Plus className="h-4 w-4" /> New program
           </Button>
         }
@@ -119,7 +119,7 @@ function TemplateCard({ template, owned }: { template: ProgramTemplate; owned: b
   }
 
   return (
-    <Card className="transition-colors hover:border-[var(--color-primary)]">
+    <Card className="transition-colors hover:border-[var(--color-primary)]" data-testid={`program-template-${template.id}`}>
       <CardContent className="flex items-center gap-4 p-4">
         <Link to={`/coach/programs/${template.id}`} className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -223,7 +223,7 @@ function CreateTemplateModal({ open, onClose }: { open: boolean; onClose: () => 
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} data-testid="create-program-save">
             {isSubmitting ? 'Creating…' : 'Create'}
           </Button>
         </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { Users } from 'lucide-react'
+import { BrandLogo } from '@/components/layout/BrandLogo'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -39,7 +39,7 @@ export function SignupPage() {
 
   return (
     <AuthShell
-      icon={<Users className="h-6 w-6" />}
+      icon={<BrandLogo className="h-12 w-12" />}
       title="Create a coach account"
       subtitle="Set up your Gentle Way coaching workspace"
     >

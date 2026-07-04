@@ -9,6 +9,7 @@ import { toastError } from '@/components/ui/Toast'
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/Feedback'
 import { formatDuration } from '@/lib/prescription'
 import { useDayPrescriptions } from '@/api/program'
+import { useAssignedDayExercises } from '@/api/programs'
 import {
   useDeleteSession,
   useDeleteSet,
@@ -28,7 +29,7 @@ import { FocusMetricCard } from '@/features/session/FocusMetricCard'
 import type { SessionMetrics } from '@/features/session/FocusMetricCard'
 import { RestTimer } from '@/features/session/RestTimer'
 import { DAY_META } from '@/lib/program'
-import type { DayCode, SessionSet, WorkoutSession } from '@/lib/types'
+import type { DayCode, PlannedExercise, SessionSet, WorkoutSession } from '@/lib/types'
 
 function useNow(active: boolean): number {
   const [now, setNow] = useState(() => Date.now())
@@ -69,7 +70,16 @@ function computeMetrics(sets: SessionSet[], previousVolume: number | null): Sess
 export function SessionTracker({ session }: { session: WorkoutSession }) {
   const navigate = useNavigate()
   const dayCode = (session.day_code as DayCode | null) ?? 'A'
-  const prescriptions = useDayPrescriptions(session.week_number ?? undefined, dayCode)
+  const isAssigned = session.template_id != null
+  const prescriptions = useDayPrescriptions(
+    isAssigned ? undefined : (session.week_number ?? undefined),
+    isAssigned ? undefined : dayCode,
+  )
+  const assignedExercises = useAssignedDayExercises(
+    isAssigned ? (session.mesocycle_id ?? undefined) : undefined,
+    isAssigned ? (session.template_week ?? undefined) : undefined,
+    isAssigned ? dayCode : undefined,
+  )
   const sets = useSessionSets(session.id)
   const adjustments = useSessionAdjustments(session.id)
   const finish = useFinishSession()
@@ -117,6 +127,26 @@ export function SessionTracker({ session }: { session: WorkoutSession }) {
     for (const list of map.values()) list.sort((a, b) => a.set_index - b.set_index)
     return map
   }, [sets.data])
+
+  const setsByTemplateSession = useMemo(() => {
+    const map = new Map<string, SessionSet[]>()
+    for (const set of sets.data ?? []) {
+      if (set.template_session_id == null) continue
+      const list = map.get(set.template_session_id) ?? []
+      list.push(set)
+      map.set(set.template_session_id, list)
+    }
+    for (const list of map.values()) list.sort((a, b) => a.set_index - b.set_index)
+    return map
+  }, [sets.data])
+
+  const assignedMetaById = useMemo(() => {
+    const map = new Map<string, PlannedExercise>()
+    for (const row of assignedExercises.data ?? []) {
+      if (row.source.kind === 'template') map.set(row.source.templateSessionId, row)
+    }
+    return map
+  }, [assignedExercises.data])
 
   const metrics = useMemo(
     () => computeMetrics(sets.data ?? [], previousVolume.data ?? null),
@@ -272,10 +302,50 @@ export function SessionTracker({ session }: { session: WorkoutSession }) {
         </div>
       </div>
 
-      {prescriptions.isLoading || sets.isLoading ? (
+      {sets.isLoading ? (
         <LoadingState label="Loading session…" />
-      ) : prescriptions.isError || sets.isError ? (
+      ) : sets.isError ? (
         <ErrorState />
+      ) : isAssigned ? (
+        (sets.data ?? []).length === 0 ? (
+          <EmptyState title="No exercises in this session" />
+        ) : (
+          <div className="flex flex-col gap-4">
+            {[...setsByTemplateSession.entries()].map(([templateSessionId, exerciseSets]) => {
+              const meta = assignedMetaById.get(templateSessionId)
+              const exerciseName = exerciseSets[0]?.exercise ?? meta?.exercise ?? 'Exercise'
+              return (
+                <ExerciseCard
+                  key={templateSessionId}
+                  sessionId={session.id}
+                  prescription={null}
+                  templateSessionId={templateSessionId}
+                  meta={
+                    meta
+                      ? {
+                          exercise: meta.exercise,
+                          prescription: meta.prescription,
+                          target_rpe: meta.target_rpe,
+                          rest: meta.rest,
+                        }
+                      : {
+                          exercise: exerciseName,
+                          prescription: null,
+                          target_rpe: null,
+                          rest: null,
+                        }
+                  }
+                  exerciseName={exerciseName}
+                  sets={exerciseSets}
+                  previous={previous.data?.get(exerciseName)}
+                  disabled={finished && !editingSets}
+                  onStartRest={(seconds) => setRest({ seconds, startedAt: Date.now() })}
+                />
+              )
+            })}
+            <FocusMetricCard metrics={metrics} />
+          </div>
+        )
       ) : !prescriptions.data || prescriptions.data.length === 0 ? (
         <EmptyState title="No prescriptions for this day" />
       ) : (

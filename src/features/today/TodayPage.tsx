@@ -99,7 +99,12 @@ function AssignedToday({ assignment, today }: { assignment: ClientAssignment; to
   const rows = useMemo(() => {
     if (!structure.data || !placement || !dayCode) return []
     return structure.data.sessions
-      .filter((s) => s.mesocycle_id === placement.mesocycle.id && s.day_code === dayCode)
+      .filter(
+        (s) =>
+          s.mesocycle_id === placement.mesocycle.id &&
+          s.day_code === dayCode &&
+          (s.week_number == null || s.week_number === placement.phaseWeek),
+      )
       .sort((a, b) => a.sort_order - b.sort_order)
   }, [structure.data, placement, dayCode])
 
@@ -161,33 +166,44 @@ function AssignedToday({ assignment, today }: { assignment: ClientAssignment; to
             </CardContent>
           </Card>
         ) : (
-          <Card className="overflow-hidden">
-            <div className="bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] px-5 py-4">
-              <div className="flex items-center gap-2 text-[var(--color-primary)]">
-                <Dumbbell className="h-5 w-5" />
-                <span className="text-sm font-semibold">
-                  Day {dayCode}
-                  {rows[0]?.day_label ? ` · ${rows[0].day_label}` : ''}
-                </span>
+          <>
+            <Card className="overflow-hidden">
+              <div className="bg-[color-mix(in_srgb,var(--color-primary)_14%,transparent)] px-5 py-4">
+                <div className="flex items-center gap-2 text-[var(--color-primary)]">
+                  <Dumbbell className="h-5 w-5" />
+                  <span className="text-sm font-semibold">
+                    Day {dayCode}
+                    {rows[0]?.day_label ? ` · ${rows[0].day_label}` : ''}
+                  </span>
+                </div>
               </div>
-            </div>
-            <CardContent className="divide-y divide-[var(--color-border)] p-0">
-              {rows.map((row) => (
-                <div key={row.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-[var(--color-fg)]">{row.exercise}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      {row.prescription ? (
-                        <span className="text-xs text-[var(--color-muted)]">{row.prescription}</span>
-                      ) : null}
-                      <RpeTextBadge value={row.target_rpe} />
-                      {row.rest ? <Badge variant="outline">{row.rest}</Badge> : null}
+              <CardContent className="divide-y divide-[var(--color-border)] p-0">
+                {rows.map((row) => (
+                  <div key={row.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-[var(--color-fg)]">{row.exercise}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {row.prescription ? (
+                          <span className="text-xs text-[var(--color-muted)]">{row.prescription}</span>
+                        ) : null}
+                        <RpeTextBadge value={row.target_rpe} />
+                        {row.rest ? <Badge variant="outline">{row.rest}</Badge> : null}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                ))}
+              </CardContent>
+            </Card>
+
+            <SessionLauncher
+              weekNumber={programWeek}
+              dayCode={dayCode as DayCode}
+              templateId={assignment.template_id}
+              mesocycleId={placement?.mesocycle.id}
+              weekInMeso={placement?.phaseWeek}
+              sectionTitle="Session"
+            />
+          </>
         )}
       </TodaySections>
     </div>

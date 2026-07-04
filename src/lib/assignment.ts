@@ -74,3 +74,40 @@ export function resolvePhase(
 export function totalTemplateWeeks(mesocycles: Mesocycle[]): number {
   return mesocycles.reduce((sum, m) => sum + m.weeks, 0)
 }
+
+export type WeekPlacement = {
+  mesocycle: Mesocycle
+  // 1-based week within the resolved mesocycle.
+  weekInMeso: number
+}
+
+// Map an absolute program week (1-based since assignment start) to the mesocycle
+// and week within that phase. Mirrors resolvePhase but driven by week number
+// instead of today's date.
+export function resolveWeek(
+  mesocycles: Mesocycle[],
+  absoluteWeek: number,
+  pinnedMesocycleId: string | null = null,
+): WeekPlacement | null {
+  if (mesocycles.length === 0) return null
+  const ordered = [...mesocycles].sort((a, b) => a.sort_order - b.sort_order)
+  const weeksElapsed = Math.max(0, absoluteWeek - 1)
+
+  if (pinnedMesocycleId) {
+    const pinned = ordered.find((m) => m.id === pinnedMesocycleId)
+    if (!pinned) return null
+    const weekInMeso = Math.min(weeksElapsed, Math.max(0, pinned.weeks - 1)) + 1
+    return { mesocycle: pinned, weekInMeso }
+  }
+
+  let consumed = 0
+  for (const meso of ordered) {
+    if (weeksElapsed < consumed + meso.weeks) {
+      return { mesocycle: meso, weekInMeso: weeksElapsed - consumed + 1 }
+    }
+    consumed += meso.weeks
+  }
+
+  const last = ordered[ordered.length - 1]
+  return { mesocycle: last, weekInMeso: last.weeks }
+}

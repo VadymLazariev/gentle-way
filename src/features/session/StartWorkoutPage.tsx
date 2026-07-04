@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Dumbbell, PlayCircle } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
@@ -8,20 +8,55 @@ import { Badge } from '@/components/ui/Badge'
 import { LoadingState, ErrorState } from '@/components/ui/Feedback'
 import { useClientSettings } from '@/api/settings'
 import { useDayPrescriptions } from '@/api/program'
+import { useActiveAssignment, useAssignedDayExercises, useTemplateStructure } from '@/api/programs'
 import { useActiveSessions } from '@/api/sessions'
+import { parseSchedule, resolvePhase, resolveWeek, totalTemplateWeeks } from '@/lib/assignment'
 import { computeCurrentWeek, DAY_META, DAY_ORDER, TOTAL_WEEKS } from '@/lib/program'
 import type { DayCode, WorkoutSession } from '@/lib/types'
 
 export function StartWorkoutPage() {
   const settings = useClientSettings()
+  const assignment = useActiveAssignment()
+  const structure = useTemplateStructure(assignment.data?.template_id)
   const active = useActiveSessions()
   const [week, setWeek] = useState<number | null>(null)
 
-  if (settings.isLoading) return <LoadingState />
-  if (settings.isError || !settings.data) return <ErrorState />
+  const assigned = assignment.data != null
+  const schedule = useMemo(
+    () => (assignment.data ? parseSchedule(assignment.data.schedule) : {}),
+    [assignment.data],
+  )
+  const scheduledDays = useMemo(() => {
+    const codes = [...new Set(Object.values(schedule))].sort()
+    return codes.length > 0 ? codes : DAY_ORDER
+  }, [schedule])
 
-  const currentWeek =
-    settings.data.current_week ?? computeCurrentWeek(settings.data.program_start_date)
+  const assignedCurrentWeek = useMemo(() => {
+    if (!assigned || !assignment.data || !structure.data) return 1
+    const placement = resolvePhase(
+      structure.data.mesocycles,
+      assignment.data.start_date,
+      assignment.data.mesocycle_id,
+    )
+    const total = totalTemplateWeeks(structure.data.mesocycles)
+    const absoluteWeek = placement ? placement.weeksElapsed + 1 : 1
+    return total > 0 ? Math.min(absoluteWeek, total) : absoluteWeek
+  }, [assigned, assignment.data, structure.data])
+
+  if (settings.isLoading || assignment.isLoading || (assigned && structure.isLoading)) {
+    return <LoadingState />
+  }
+  if (settings.isError || !settings.data || assignment.isError) return <ErrorState />
+  if (assigned && (structure.isError || !structure.data)) return <ErrorState />
+
+  const currentWeek = assigned
+    ? assignedCurrentWeek
+    : (settings.data.current_week ?? computeCurrentWeek(settings.data.program_start_date))
+
+  const maxWeek = assigned
+    ? totalTemplateWeeks(structure.data!.mesocycles)
+    : TOTAL_WEEKS
+
   const selectedWeek = week ?? currentWeek
 
   return (
@@ -62,8 +97,8 @@ export function StartWorkoutPage() {
             variant="outline"
             size="icon"
             aria-label="Next week"
-            disabled={selectedWeek >= TOTAL_WEEKS}
-            onClick={() => setWeek(Math.min(TOTAL_WEEKS, selectedWeek + 1))}
+            disabled={selectedWeek >= maxWeek}
+            onClick={() => setWeek(Math.min(maxWeek, selectedWeek + 1))}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -71,9 +106,24 @@ export function StartWorkoutPage() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {DAY_ORDER.map((day) => (
-          <TemplateCard key={day} week={selectedWeek} day={day} />
-        ))}
+        {assigned
+          ? scheduledDays.map((day) => {
+              const placement = resolveWeek(
+                structure.data!.mesocycles,
+                selectedWeek,
+                assignment.data!.mesocycle_id,
+              )
+              return (
+                <AssignedTemplateCard
+                  key={day}
+                  week={selectedWeek}
+                  day={day as DayCode}
+                  mesocycleId={placement?.mesocycle.id}
+                  weekInMeso={placement?.weekInMeso}
+                />
+              )
+            })
+          : DAY_ORDER.map((day) => <BuiltinTemplateCard key={day} week={selectedWeek} day={day} />)}
       </div>
     </div>
   )
@@ -101,7 +151,7 @@ function ResumeCard({ session }: { session: WorkoutSession }) {
   )
 }
 
-function TemplateCard({ week, day }: { week: number; day: DayCode }) {
+function BuiltinTemplateCard({ week, day }: { week: number; day: DayCode }) {
   const navigate = useNavigate()
   const prescriptions = useDayPrescriptions(week, day)
   const to = `/start/${week}/${day}`
@@ -132,6 +182,55 @@ function TemplateCard({ week, day }: { week: number; day: DayCode }) {
         </div>
         <p className="mt-2 line-clamp-2 text-sm text-[var(--color-muted)]">
           {prescriptions.isLoading
+            ? 'Loading…'
+            : preview
+              ? `${preview}${extra > 0 ? `, +${extra} more` : ''}`
+              : 'No exercises for this day'}
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function AssignedTemplateCard({
+  week,
+  day,
+  mesocycleId,
+  weekInMeso,
+}: {
+  week: number
+  day: DayCode
+  mesocycleId: string | undefined
+  weekInMeso: number | undefined
+}) {
+  const navigate = useNavigate()
+  const exercises = useAssignedDayExercises(mesocycleId, weekInMeso, day)
+  const to = `/start/${week}/${day}`
+
+  const preview = (exercises.data ?? [])
+    .slice(0, 4)
+    .map((p) => p.exercise)
+    .join(', ')
+  const extra = (exercises.data?.length ?? 0) - 4
+
+  return (
+    <Card
+      className="cursor-pointer transition-colors hover:border-[var(--color-primary)]"
+      onClick={() => navigate(to)}
+      data-testid={`assigned-template-${week}-${day}`}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[var(--color-primary)]">
+              <Dumbbell className="h-4 w-4" />
+              <span className="text-sm font-semibold">Week {week} · Day {day}</span>
+            </div>
+          </div>
+          <Badge variant="outline">{exercises.data?.length ?? 0} ex</Badge>
+        </div>
+        <p className="mt-2 line-clamp-2 text-sm text-[var(--color-muted)]">
+          {exercises.isLoading
             ? 'Loading…'
             : preview
               ? `${preview}${extra > 0 ? `, +${extra} more` : ''}`

@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LogOut, Users } from 'lucide-react'
+import { LogOut } from 'lucide-react'
+import { BrandLogo } from '@/components/layout/BrandLogo'
 import { coachNavItems } from '@/components/layout/nav'
 import { Toaster, toastError } from '@/components/ui/Toast'
 import { useCoachInboxCount } from '@/api/cheatMeals'
@@ -90,9 +91,7 @@ export function CoachLayout() {
 function Brand({ name }: { name: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--color-primary)] text-[var(--color-primary-fg)]">
-        <Users className="h-5 w-5" />
-      </div>
+      <BrandLogo className="h-9 w-9" />
       <div className="leading-tight">
         <p className="text-sm font-bold text-[var(--color-fg)]">Coach</p>
         <p className="max-w-[150px] truncate text-[11px] text-[var(--color-muted)]">{name}</p>

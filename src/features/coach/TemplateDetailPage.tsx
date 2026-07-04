@@ -103,7 +103,7 @@ export function TemplateDetailPage() {
                 <Copy className="h-4 w-4" /> Duplicate to edit
               </Button>
             )}
-            <Button size="sm" onClick={() => setAssignOpen(true)}>
+            <Button size="sm" onClick={() => setAssignOpen(true)} data-testid="assign-program-btn">
               <UserCheck className="h-4 w-4" /> Assign
             </Button>
           </div>
@@ -117,7 +117,7 @@ export function TemplateDetailPage() {
           icon={<Layers className="h-7 w-7" />}
           action={
             owned ? (
-              <Button size="sm" onClick={() => setMesoModal({ meso: null })}>
+              <Button size="sm" onClick={() => setMesoModal({ meso: null })} data-testid="add-meso-btn">
                 <Plus className="h-4 w-4" /> Add phase
               </Button>
             ) : undefined
@@ -139,7 +139,7 @@ export function TemplateDetailPage() {
       )}
 
       {owned && mesocycles.length > 0 ? (
-        <Button variant="outline" onClick={() => setMesoModal({ meso: null })}>
+        <Button variant="outline" onClick={() => setMesoModal({ meso: null })} data-testid="add-meso-btn">
           <Plus className="h-4 w-4" /> Add phase
         </Button>
       ) : null}
@@ -186,20 +186,28 @@ function MesocycleCard({
 }) {
   const deleteMeso = useDeleteMesocycle()
   const deleteSession = useDeleteTemplateSession()
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
   const [rowModal, setRowModal] = useState<{ dayCode: string; row: TemplateSession | null } | null>(
     null,
   )
 
+  const filteredSessions = useMemo(() => {
+    if (selectedWeek == null) {
+      return sessions.filter((s) => s.week_number == null)
+    }
+    return sessions.filter((s) => s.week_number == null || s.week_number === selectedWeek)
+  }, [sessions, selectedWeek])
+
   const byDay = useMemo(() => {
     const map = new Map<string, TemplateSession[]>()
-    for (const s of sessions) {
+    for (const s of filteredSessions) {
       const list = map.get(s.day_code) ?? []
       list.push(s)
       map.set(s.day_code, list)
     }
     for (const list of map.values()) list.sort((a, b) => a.sort_order - b.sort_order)
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [sessions])
+  }, [filteredSessions])
 
   const onDeleteMeso = async () => {
     try {
@@ -223,7 +231,7 @@ function MesocycleCard({
       -1) + 1
 
   return (
-    <Card>
+    <Card data-testid={`mesocycle-${mesocycle.id}`}>
       <CardContent className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -258,6 +266,31 @@ function MesocycleCard({
           ) : null}
         </div>
 
+        {owned ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Label htmlFor={`week-select-${mesocycle.id}`} className="text-xs text-[var(--color-muted)]">
+              View week
+            </Label>
+            <Select
+              id={`week-select-${mesocycle.id}`}
+              className="w-40"
+              value={selectedWeek == null ? 'all' : String(selectedWeek)}
+              onChange={(e) => {
+                const value = e.target.value
+                setSelectedWeek(value === 'all' ? null : Number(value))
+              }}
+              data-testid={`meso-week-select-${mesocycle.id}`}
+            >
+              <option value="all">All weeks</option>
+              {Array.from({ length: mesocycle.weeks }, (_, i) => i + 1).map((w) => (
+                <option key={w} value={w}>
+                  Week {w}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
+
         <div className="mt-4 flex flex-col gap-4">
           {byDay.length === 0 ? (
             <p className="text-sm text-[var(--color-muted)]">No sessions in this phase yet.</p>
@@ -274,6 +307,7 @@ function MesocycleCard({
                       type="button"
                       onClick={() => setRowModal({ dayCode, row: null })}
                       className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-primary)] hover:brightness-110"
+                      data-testid={`add-exercise-${mesocycle.id}-${dayCode}`}
                     >
                       <Plus className="h-3.5 w-3.5" /> Exercise
                     </button>
@@ -292,6 +326,9 @@ function MesocycleCard({
                           ) : null}
                           {row.target_rpe ? (
                             <Badge variant="outline">RPE {row.target_rpe}</Badge>
+                          ) : null}
+                          {row.week_number != null ? (
+                            <Badge variant="accent">Week {row.week_number}</Badge>
                           ) : null}
                           {row.rest ? <Badge variant="outline">{row.rest}</Badge> : null}
                         </div>
@@ -329,6 +366,7 @@ function MesocycleCard({
               type="button"
               onClick={() => setRowModal({ dayCode: 'A', row: null })}
               className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-[var(--color-primary)] hover:brightness-110"
+              data-testid={`add-exercise-${mesocycle.id}`}
             >
               <Plus className="h-4 w-4" /> Add exercise to a day
             </button>
@@ -344,6 +382,7 @@ function MesocycleCard({
           mesocycleId={mesocycle.id}
           row={rowModal.row}
           defaultDayCode={rowModal.dayCode}
+          defaultWeekNumber={selectedWeek}
           nextSortOrder={rowModal.row ? rowModal.row.sort_order : nextRowSort(rowModal.dayCode)}
         />
       ) : null}
@@ -489,7 +528,7 @@ function MesocycleModal({
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="meso-name">Name</Label>
-          <Input id="meso-name" placeholder="e.g. Accumulation" {...register('name')} />
+          <Input id="meso-name" placeholder="e.g. Accumulation" {...register('name')} data-testid="meso-name" />
           {errors.name ? (
             <p className="text-xs text-[var(--color-danger)]">{errors.name.message}</p>
           ) : null}
@@ -509,7 +548,7 @@ function MesocycleModal({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} data-testid="meso-save">
             {mesocycle ? 'Save' : 'Add phase'}
           </Button>
         </div>
@@ -535,6 +574,7 @@ function SessionRowModal({
   mesocycleId,
   row,
   defaultDayCode,
+  defaultWeekNumber,
   nextSortOrder,
 }: {
   open: boolean
@@ -543,6 +583,7 @@ function SessionRowModal({
   mesocycleId: string
   row: TemplateSession | null
   defaultDayCode: string
+  defaultWeekNumber: number | null
   nextSortOrder: number
 }) {
   const add = useAddTemplateSession()
@@ -562,6 +603,8 @@ function SessionRowModal({
     },
   })
 
+  const weekNumber = row?.week_number ?? defaultWeekNumber
+
   const onSubmit = handleSubmit(async (values) => {
     try {
       if (row) {
@@ -573,6 +616,7 @@ function SessionRowModal({
           prescription: values.prescription?.trim() || null,
           targetRpe: values.target_rpe?.trim() || null,
           rest: values.rest?.trim() || null,
+          weekNumber: row.week_number,
         })
       } else {
         await add.mutateAsync({
@@ -584,6 +628,7 @@ function SessionRowModal({
           targetRpe: values.target_rpe?.trim() || null,
           rest: values.rest?.trim() || null,
           sortOrder: nextSortOrder,
+          weekNumber,
         })
       }
       onClose()
@@ -594,7 +639,12 @@ function SessionRowModal({
 
   return (
     <Modal open={open} onClose={onClose} title={row ? 'Edit exercise' : 'Add exercise'}>
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4" data-testid="session-row-form">
+        {weekNumber != null ? (
+          <p className="text-sm text-[var(--color-muted)]">Adding to week {weekNumber}</p>
+        ) : (
+          <p className="text-sm text-[var(--color-muted)]">Applies to all weeks in this phase</p>
+        )}
         <div className="grid grid-cols-3 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="row-day">Day</Label>
@@ -606,7 +656,7 @@ function SessionRowModal({
           </div>
           <div className="col-span-2 flex flex-col gap-1.5">
             <Label htmlFor="row-exercise">Exercise</Label>
-            <Input id="row-exercise" placeholder="e.g. Front squat" {...register('exercise')} />
+            <Input id="row-exercise" placeholder="e.g. Front squat" {...register('exercise')} data-testid="session-row-exercise" />
           </div>
         </div>
         {errors.exercise ? (
@@ -615,7 +665,7 @@ function SessionRowModal({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="row-prescription">Prescription</Label>
-          <Input id="row-prescription" placeholder="e.g. 3×6" {...register('prescription')} />
+          <Input id="row-prescription" placeholder="e.g. 3×6" {...register('prescription')} data-testid="session-row-prescription" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
@@ -631,7 +681,7 @@ function SessionRowModal({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} data-testid="session-row-save">
             {row ? 'Save' : 'Add'}
           </Button>
         </div>

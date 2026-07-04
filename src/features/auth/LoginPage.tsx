@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { Swords } from 'lucide-react'
+import { BrandLogo } from '@/components/layout/BrandLogo'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -34,7 +34,7 @@ export function LoginPage() {
 
   return (
     <AuthShell
-      icon={<Swords className="h-6 w-6" />}
+      icon={<BrandLogo className="h-12 w-12" />}
       title="Welcome back"
       subtitle="Sign in to Gentle Way"
     >

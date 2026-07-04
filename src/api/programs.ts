@@ -9,6 +9,7 @@ import type {
   ClientAssignment,
   Mesocycle,
   MesocycleUpdate,
+  PlannedExercise,
   ProgramTemplate,
   TemplateSession,
   TemplateSessionUpdate,
@@ -173,6 +174,7 @@ export function useDuplicateTemplate() {
             target_rpe: s.target_rpe,
             rest: s.rest,
             sort_order: s.sort_order,
+            week_number: s.week_number,
           }
         })
         .filter((r): r is NonNullable<typeof r> => r !== null)
@@ -317,6 +319,7 @@ export function useAddTemplateSession() {
       targetRpe?: string | null
       rest?: string | null
       sortOrder: number
+      weekNumber?: number | null
     }): Promise<TemplateSession> => {
       const { data, error } = await supabase
         .from('template_sessions')
@@ -329,6 +332,7 @@ export function useAddTemplateSession() {
           target_rpe: input.targetRpe ?? null,
           rest: input.rest ?? null,
           sort_order: input.sortOrder,
+          week_number: input.weekNumber ?? null,
         })
         .select('*')
         .single()
@@ -353,6 +357,7 @@ export function useUpdateTemplateSession() {
       rest?: string | null
       dayCode?: string
       sortOrder?: number
+      weekNumber?: number | null
     }): Promise<TemplateSession> => {
       const patch: TemplateSessionUpdate = {}
       if (input.exercise !== undefined) patch.exercise = input.exercise
@@ -361,6 +366,7 @@ export function useUpdateTemplateSession() {
       if (input.rest !== undefined) patch.rest = input.rest
       if (input.dayCode !== undefined) patch.day_code = input.dayCode
       if (input.sortOrder !== undefined) patch.sort_order = input.sortOrder
+      if (input.weekNumber !== undefined) patch.week_number = input.weekNumber
       const { data, error } = await supabase
         .from('template_sessions')
         .update(patch)
@@ -386,6 +392,42 @@ export function useDeleteTemplateSession() {
     },
     onSuccess: (templateId) => {
       qc.invalidateQueries({ queryKey: queryKeys.templateStructure(templateId) })
+    },
+  })
+}
+
+function mapTemplateSessionToPlanned(row: TemplateSession): PlannedExercise {
+  return {
+    exercise: row.exercise,
+    prescription: row.prescription,
+    target_rpe: row.target_rpe,
+    rest: row.rest,
+    source: { kind: 'template', templateSessionId: row.id },
+  }
+}
+
+export function useAssignedDayExercises(
+  mesocycleId: string | undefined,
+  weekInMeso: number | undefined,
+  dayCode: string | undefined,
+) {
+  return useQuery({
+    queryKey: queryKeys.assignedDayExercises(
+      mesocycleId ?? '',
+      weekInMeso ?? 0,
+      dayCode ?? '',
+    ),
+    enabled: !!mesocycleId && weekInMeso !== undefined && !!dayCode,
+    queryFn: async (): Promise<PlannedExercise[]> => {
+      const { data, error } = await supabase
+        .from('template_sessions')
+        .select('*')
+        .eq('mesocycle_id', mesocycleId!)
+        .eq('day_code', dayCode!)
+        .or(`week_number.is.null,week_number.eq.${weekInMeso}`)
+        .order('sort_order', { ascending: true })
+      if (error) throw error
+      return data.map(mapTemplateSessionToPlanned)
     },
   })
 }

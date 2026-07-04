@@ -106,6 +106,16 @@ export type AssignmentSchedule = Record<string, string>
 
 export type DayCode = 'A' | 'B' | 'C'
 
+export type PlannedExercise = {
+  exercise: string
+  prescription: string | null
+  target_rpe: string | null
+  rest: string | null
+  source:
+    | { kind: 'builtin'; prescriptionId: number }
+    | { kind: 'template'; templateSessionId: string }
+}
+
 export type SetType = 'normal' | 'warmup' | 'drop' | 'failure'
 
 export type BodyArea =

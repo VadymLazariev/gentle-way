@@ -1680,6 +1680,7 @@ export type Database = {
           session_id: string
           set_index: number
           set_type: string
+          template_session_id: string | null
           updated_at: string
           weight_kg: number | null
         }
@@ -1695,6 +1696,7 @@ export type Database = {
           session_id: string
           set_index: number
           set_type?: string
+          template_session_id?: string | null
           updated_at?: string
           weight_kg?: number | null
         }
@@ -1710,6 +1712,7 @@ export type Database = {
           session_id?: string
           set_index?: number
           set_type?: string
+          template_session_id?: string | null
           updated_at?: string
           weight_kg?: number | null
         }
@@ -1726,6 +1729,13 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "workout_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_sets_template_session_id_fkey"
+            columns: ["template_session_id"]
+            isOneToOne: false
+            referencedRelation: "template_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -1857,6 +1867,7 @@ export type Database = {
           sort_order: number
           target_rpe: string | null
           updated_at: string
+          week_number: number | null
         }
         Insert: {
           created_at?: string
@@ -1870,6 +1881,7 @@ export type Database = {
           sort_order?: number
           target_rpe?: string | null
           updated_at?: string
+          week_number?: number | null
         }
         Update: {
           created_at?: string
@@ -1883,6 +1895,7 @@ export type Database = {
           sort_order?: number
           target_rpe?: string | null
           updated_at?: string
+          week_number?: number | null
         }
         Relationships: [
           {
@@ -2015,10 +2028,13 @@ export type Database = {
           duration_seconds: number | null
           finished_at: string | null
           id: string
+          mesocycle_id: string | null
           notes: string | null
           paused_at: string | null
           paused_seconds: number
           started_at: string
+          template_id: string | null
+          template_week: number | null
           title: string | null
           updated_at: string
           week_number: number | null
@@ -2032,10 +2048,13 @@ export type Database = {
           duration_seconds?: number | null
           finished_at?: string | null
           id?: string
+          mesocycle_id?: string | null
           notes?: string | null
           paused_at?: string | null
           paused_seconds?: number
           started_at?: string
+          template_id?: string | null
+          template_week?: number | null
           title?: string | null
           updated_at?: string
           week_number?: number | null
@@ -2049,10 +2068,13 @@ export type Database = {
           duration_seconds?: number | null
           finished_at?: string | null
           id?: string
+          mesocycle_id?: string | null
           notes?: string | null
           paused_at?: string | null
           paused_seconds?: number
           started_at?: string
+          template_id?: string | null
+          template_week?: number | null
           title?: string | null
           updated_at?: string
           week_number?: number | null
@@ -2077,6 +2099,20 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_sessions_mesocycle_id_fkey"
+            columns: ["mesocycle_id"]
+            isOneToOne: false
+            referencedRelation: "mesocycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_sessions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "program_templates"
             referencedColumns: ["id"]
           },
           {

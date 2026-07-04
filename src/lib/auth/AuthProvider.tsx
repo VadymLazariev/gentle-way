@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PostgrestError, Session, User } from '@supabase/supabase-js'
+import { authCallbackUrl } from '@/lib/auth/redirect'
 import { supabase } from '@/lib/supabase'
 import { queryClient } from '@/lib/queryClient'
 import type { Profile, Role } from '@/lib/types'
@@ -131,7 +132,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { role: 'coach', name } },
+      options: {
+        emailRedirectTo: authCallbackUrl('/login'),
+        data: { role: 'coach', name },
+      },
     })
     if (error) throw error
   }, [])

@@ -17,6 +17,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { Toaster, toastError } from '@/components/ui/Toast'
+import { authCallbackUrl } from '@/lib/auth/redirect'
 import { supabase } from '@/lib/supabase'
 import { sanitizeNumericInput } from '@/lib/numeric'
 import type { InviteStatus } from '@/lib/types'
@@ -193,7 +194,10 @@ function OnboardForm({ token }: { token: string }) {
       const { data: signUp, error: signUpError } = await supabase.auth.signUp({
         email: values.email.trim(),
         password: values.password,
-        options: { data: { role: 'client', name: values.name.trim() } },
+        options: {
+          emailRedirectTo: authCallbackUrl(`/onboard/${token}`),
+          data: { role: 'client', name: values.name.trim() },
+        },
       })
       if (signUpError) throw signUpError
 

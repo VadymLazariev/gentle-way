@@ -1,7 +1,9 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { LogOut } from 'lucide-react'
+import { useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { LogOut, MoreHorizontal } from 'lucide-react'
 import { BrandLogo } from '@/components/layout/BrandLogo'
-import { clientNavItems } from '@/components/layout/nav'
+import { MobileMoreSheet } from '@/components/layout/MobileMoreSheet'
+import { clientNavItems, moreNavItems, navItemMatchesPath, primaryNavItems } from '@/components/layout/nav'
 import { InstallPrompt } from '@/components/InstallPrompt'
 import { Toaster, toastError } from '@/components/ui/Toast'
 import { useAuth } from '@/lib/auth/AuthProvider'
@@ -9,6 +11,9 @@ import { cn } from '@/lib/utils'
 
 export function AppLayout() {
   const { signOut } = useAuth()
+  const location = useLocation()
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreActive = moreNavItems.some((item) => navItemMatchesPath(item, location.pathname))
 
   const onSignOut = async () => {
     try {
@@ -54,35 +59,50 @@ export function AppLayout() {
       </aside>
 
       <div className="flex min-h-screen flex-col">
-        <header className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 md:hidden">
+        <header className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] md:hidden">
           <Brand />
         </header>
 
-        <main className="flex-1 px-4 py-6 pb-24 md:px-8 md:py-8 md:pb-8">
+        <main className="flex-1 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:py-8 md:pb-8">
           <div className="mx-auto w-full max-w-5xl">
             <Outlet />
           </div>
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] backdrop-blur md:hidden">
-        {clientNavItems.map((item) => (
+      <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+        {primaryNavItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
               cn(
-                'flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors',
+                'flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
                 isActive ? 'text-[var(--color-primary)]' : 'text-[var(--color-muted)]',
               )
             }
           >
-            <item.icon className="h-5 w-5" />
-            {item.label}
+            <item.icon className="h-5 w-5 shrink-0" />
+            <span className="truncate">{item.label}</span>
           </NavLink>
         ))}
+        <button
+          type="button"
+          onClick={() => setMoreOpen(true)}
+          aria-label="More navigation"
+          aria-expanded={moreOpen}
+          className={cn(
+            'flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors',
+            moreActive ? 'text-[var(--color-primary)]' : 'text-[var(--color-muted)]',
+          )}
+        >
+          <MoreHorizontal className="h-5 w-5 shrink-0" />
+          <span className="truncate">More</span>
+        </button>
       </nav>
+
+      <MobileMoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} onSignOut={onSignOut} />
 
       <Toaster />
       <InstallPrompt />

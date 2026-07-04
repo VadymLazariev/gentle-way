@@ -2131,6 +2131,7 @@ export type Database = {
     Functions: {
       can_read_diet_template: { Args: { p_template: string }; Returns: boolean }
       can_read_template: { Args: { p_template: string }; Returns: boolean }
+      invite_details: { Args: { p_token: string }; Returns: Json }
       invite_status: { Args: { p_token: string }; Returns: string }
       is_coach_of: { Args: { p_client: string }; Returns: boolean }
       owns_diet_template: { Args: { p_template: string }; Returns: boolean }

@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow, parseISO } from 'date-fns'
-import { ArrowRight, Link2, Plus, Trash2, UserPlus, Users } from 'lucide-react'
+import { ArrowRight, Check, Copy, Link2, Plus, Trash2, UserPlus, Users } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/Feedback'
-import { toastError } from '@/components/ui/Toast'
-import { useClients, useInvites, useRevokeInvite } from '@/api/coach'
+import { toast, toastError } from '@/components/ui/Toast'
+import { inviteLink, useClients, useInvites, useRevokeInvite } from '@/api/coach'
 import type { CoachClientSummary } from '@/api/coach'
 import { AddClientModal } from '@/features/coach/AddClientModal'
 
@@ -72,6 +72,7 @@ export function ClientsPage() {
               <PendingInvite
                 key={invite.id}
                 id={invite.id}
+                token={invite.token}
                 email={invite.email}
                 expiresAt={invite.expires_at}
               />
@@ -114,14 +115,30 @@ function ClientCard({ client }: { client: CoachClientSummary }) {
 
 function PendingInvite({
   id,
+  token,
   email,
   expiresAt,
 }: {
   id: string
+  token: string
   email: string | null
   expiresAt: string | null
 }) {
   const revoke = useRevokeInvite()
+  const [copied, setCopied] = useState(false)
+  const link = inviteLink(token)
+
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      toast('Onboarding link copied', 'success')
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      toastError(error, 'Could not copy link')
+    }
+  }
+
   const onRevoke = async () => {
     try {
       await revoke.mutateAsync(id)
@@ -129,13 +146,27 @@ function PendingInvite({
       toastError(error, 'Could not revoke invite')
     }
   }
+
   return (
     <Card>
       <CardContent className="flex items-center gap-3 p-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-surface-2)] text-[var(--color-muted)]">
-          <Link2 className="h-4 w-4" />
-        </div>
-        <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          aria-label="Copy onboarding link"
+          onClick={onCopy}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-surface-2)] text-[var(--color-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-primary)_12%,transparent)] hover:text-[var(--color-primary)]"
+        >
+          {copied ? (
+            <Check className="h-4 w-4 text-[var(--color-success)]" />
+          ) : (
+            <Link2 className="h-4 w-4" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="min-w-0 flex-1 text-left"
+        >
           <p className="truncate text-sm font-medium text-[var(--color-fg)]">
             {email ?? 'Onboarding link'}
           </p>
@@ -143,8 +174,18 @@ function PendingInvite({
             {expiresAt
               ? `Expires ${formatDistanceToNow(parseISO(expiresAt), { addSuffix: true })}`
               : 'No expiry'}
+            {' · '}
+            Tap to copy link
           </p>
-        </div>
+        </button>
+        <button
+          type="button"
+          aria-label="Copy link"
+          onClick={onCopy}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-fg)]"
+        >
+          <Copy className="h-4 w-4" />
+        </button>
         <button
           type="button"
           aria-label="Revoke invite"

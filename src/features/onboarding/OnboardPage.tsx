@@ -20,7 +20,7 @@ import { Toaster, toastError } from '@/components/ui/Toast'
 import { authCallbackUrl } from '@/lib/auth/redirect'
 import { supabase } from '@/lib/supabase'
 import { sanitizeNumericInput } from '@/lib/numeric'
-import type { InviteStatus } from '@/lib/types'
+import type { InviteDetails, InviteStatus } from '@/lib/types'
 
 const schema = z
   .object({
@@ -63,20 +63,21 @@ function withSanitizer(reg: UseFormRegisterReturn, allowDecimal: boolean): UseFo
 
 export function OnboardPage() {
   const { token } = useParams<{ token: string }>()
-  const [status, setStatus] = useState<InviteStatus | 'loading'>('loading')
+  const [invite, setInvite] = useState<InviteDetails | 'loading'>('loading')
 
   const checkToken = useCallback(async () => {
     if (!token) {
-      setStatus('invalid')
+      setInvite({ status: 'invalid', email: null })
       return
     }
-    setStatus('loading')
-    const { data, error } = await supabase.rpc('invite_status', { p_token: token })
+    setInvite('loading')
+    const { data, error } = await supabase.rpc('invite_details', { p_token: token })
     if (error) {
-      setStatus('invalid')
+      setInvite({ status: 'invalid', email: null })
       return
     }
-    setStatus((data as InviteStatus) ?? 'invalid')
+    const parsed = parseInviteDetails(data)
+    setInvite(parsed)
   }, [token])
 
   useEffect(() => {
@@ -86,20 +87,33 @@ export function OnboardPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg)] px-4 py-10">
       <div className="w-full max-w-md">
-        {status === 'loading' ? (
+        {invite === 'loading' ? (
           <CenteredCard>
             <Loader2 className="h-7 w-7 animate-spin text-[var(--color-muted)]" />
             <p className="text-sm text-[var(--color-muted)]">Checking your invitation…</p>
           </CenteredCard>
-        ) : status === 'valid' ? (
-          <OnboardForm token={token!} />
+        ) : invite.status === 'valid' ? (
+          <OnboardForm token={token!} invitedEmail={invite.email} />
         ) : (
-          <InvalidInvite status={status} onRetry={checkToken} />
+          <InvalidInvite status={invite.status} onRetry={checkToken} />
         )}
       </div>
       <Toaster />
     </div>
   )
+}
+
+function parseInviteDetails(data: unknown): InviteDetails {
+  if (data == null || typeof data !== 'object') {
+    return { status: 'invalid', email: null }
+  }
+  const row = data as { status?: unknown; email?: unknown }
+  const status = row.status
+  if (status !== 'valid' && status !== 'invalid' && status !== 'used' && status !== 'expired') {
+    return { status: 'invalid', email: null }
+  }
+  const email = typeof row.email === 'string' && row.email.trim() ? row.email.trim() : null
+  return { status, email }
 }
 
 function CenteredCard({ children }: { children: React.ReactNode }) {
@@ -157,10 +171,11 @@ function InvalidInvite({
   )
 }
 
-function OnboardForm({ token }: { token: string }) {
+function OnboardForm({ token, invitedEmail }: { token: string; invitedEmail: string | null }) {
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [done, setDone] = useState(false)
+  const emailLocked = invitedEmail != null
 
   const {
     register,
@@ -172,7 +187,7 @@ function OnboardForm({ token }: { token: string }) {
     resolver: zodResolver(schema),
     mode: 'onTouched',
     defaultValues: {
-      email: '',
+      email: invitedEmail ?? '',
       password: '',
       confirmPassword: '',
       name: '',
@@ -190,9 +205,14 @@ function OnboardForm({ token }: { token: string }) {
 
   const onSubmit = handleSubmit(async (raw) => {
     const values = schema.parse(raw)
+    const email = values.email.trim()
+    if (invitedEmail && email.toLowerCase() !== invitedEmail.toLowerCase()) {
+      toastError(new Error('Use the email address your coach invited'))
+      return
+    }
     try {
       const { data: signUp, error: signUpError } = await supabase.auth.signUp({
-        email: values.email.trim(),
+        email,
         password: values.password,
         options: {
           emailRedirectTo: authCallbackUrl(`/onboard/${token}`),
@@ -204,7 +224,7 @@ function OnboardForm({ token }: { token: string }) {
       let userId = signUp.user?.id ?? null
       if (!signUp.session) {
         const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({
-          email: values.email.trim(),
+          email,
           password: values.password,
         })
         if (signInError) throw signInError
@@ -259,7 +279,13 @@ function OnboardForm({ token }: { token: string }) {
             {step === 0 ? (
               <>
                 <Field label="Email" error={errors.email?.message}>
-                  <Input type="email" autoComplete="email" {...register('email')} />
+                  <Input
+                    type="email"
+                    autoComplete="email"
+                    readOnly={emailLocked}
+                    className={emailLocked ? 'opacity-80' : undefined}
+                    {...register('email')}
+                  />
                 </Field>
                 <Field label="Password" error={errors.password?.message}>
                   <Input type="password" autoComplete="new-password" {...register('password')} />

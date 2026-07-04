@@ -105,8 +105,8 @@ export function AddClientModal({ open, onClose }: { open: boolean; onClose: () =
               onChange={(e) => setEmail(e.target.value)}
             />
             <p className="text-xs text-[var(--color-muted)]">
-              Just a label to help you remember who the link is for. The client enters their own
-              email during onboarding.
+              Pre-fills the client&apos;s email on the onboarding form when set. They must sign up
+              with this address.
             </p>
           </div>
           <div className="flex justify-end gap-2">

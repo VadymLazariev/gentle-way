@@ -23,6 +23,22 @@ export const clientNavItems: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 
+export const primaryNavItems: NavItem[] = [
+  { to: '/', label: 'Today', icon: CalendarCheck, end: true },
+  { to: '/program', label: 'Program', icon: Dumbbell },
+  { to: '/start', label: 'Start', icon: Play },
+  { to: '/nutrition', label: 'Nutrition', icon: UtensilsCrossed },
+]
+
+const primaryPaths = new Set(primaryNavItems.map((item) => item.to))
+
+export const moreNavItems: NavItem[] = clientNavItems.filter((item) => !primaryPaths.has(item.to))
+
+export function navItemMatchesPath(item: NavItem, pathname: string): boolean {
+  if (item.end) return pathname === item.to
+  return pathname === item.to || pathname.startsWith(`${item.to}/`)
+}
+
 export const coachNavItems: NavItem[] = [
   { to: '/coach/clients', label: 'Clients', icon: Users },
   { to: '/coach/programs', label: 'Programs', icon: Dumbbell },

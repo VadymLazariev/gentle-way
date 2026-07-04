@@ -28,6 +28,11 @@ export type Sex = 'male' | 'female' | 'other'
 
 export type InviteStatus = 'valid' | 'invalid' | 'used' | 'expired'
 
+export type InviteDetails = {
+  status: InviteStatus
+  email: string | null
+}
+
 export type WorkoutSession = Tables['workout_sessions']['Row']
 export type WorkoutSessionInsert = Tables['workout_sessions']['Insert']
 export type WorkoutSessionUpdate = Tables['workout_sessions']['Update']
